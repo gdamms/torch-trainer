@@ -1,8 +1,8 @@
 from typing import *
-import rich.progress
+from rich.progress import Progress, ProgressColumn, BarColumn, TimeRemainingColumn, TimeElapsedColumn, TaskID
 
 
-class TrainProgress(rich.progress.Progress):
+class TrainProgress(Progress):
     """A progress bar which tracks the progress of training epochs."""
 
     def __init__(
@@ -11,8 +11,8 @@ class TrainProgress(rich.progress.Progress):
         train_size: int,
         val_size: int = 0,
         test_size: int = 0,
-        *columns: str | rich.progress.ProgressColumn,
-        **kwargs,
+        *columns: str | ProgressColumn,
+        **kwargs: Any,
     ) -> None:
         """Initialize the progress bar.
 
@@ -21,8 +21,8 @@ class TrainProgress(rich.progress.Progress):
             train_size (int): The size of each tain epoch.
             val_size (int, optional): The size of each validation epoch. Defaults to 0.
             test_size (int, optional): The size of the test epoch. Defaults to 0.
-            *columns (str | rich.progress.ProgressColumn): The columns to display.
-            **kwargs: Additional arguments to pass to the parent class.
+            *columns (str | ProgressColumn): The columns to display.
+            **kwargs (Any): Additional arguments to pass to the parent class.
         """
         self.nb_epochs = nb_epochs
         self.train_size = train_size
@@ -31,15 +31,15 @@ class TrainProgress(rich.progress.Progress):
 
         super().__init__(*columns, **kwargs)
 
-        self.train_tasks = []
-        self.val_tasks = []
-        self.test_task = None
+        self.train_tasks: list[TaskID] = []
+        self.val_tasks: list[TaskID] = []
+        self.test_task: TaskID | None = None
         self.total_task = self.add_task(
             "total",
             progress_type="total",
             total=nb_epochs * (train_size + val_size) + test_size,
         )
-        self.train_values = []
+        self.train_values: list[dict[str, list[float]]] = []
         self.val_values = []
         self.test_values = {}
 
@@ -51,10 +51,10 @@ class TrainProgress(rich.progress.Progress):
             if task.fields.get("progress_type") == "total":
                 self.columns = (
                     f"Working:",
-                    rich.progress.BarColumn(),
+                    BarColumn(),
                     f"{len(self.train_tasks):{pad}}/{self.nb_epochs}",
                     "•",
-                    rich.progress.TimeRemainingColumn(),
+                    TimeRemainingColumn(),
                 )
 
             # The train tasks.
@@ -64,16 +64,15 @@ class TrainProgress(rich.progress.Progress):
                     if task_i < len(self.tasks) - self.console.height + 1:
                         continue
 
-                epoch_id = task.fields.get("epoch_id")
+                epoch_id = task.fields.get("epoch_id") or 1
                 self.columns = (
                     f"Train {epoch_id:{pad}}:",
-                    rich.progress.BarColumn(),
+                    BarColumn(),
                     f"{task.completed}/{task.total}",
                     "•",
-                    rich.progress.TimeElapsedColumn(),
+                    TimeElapsedColumn(),
                     '•',
-                    ' | '.join(
-                        f"{key}: {value[-1]:.4f}" for key, value in self.train_values[epoch_id-1].items()),
+                    ' | '.join(f"{key}: {value[-1]:.4f}" for key, value in self.train_values[epoch_id-1].items()),
                 )
 
             # The val tasks.
