@@ -1,40 +1,45 @@
 import torch
-import torch.utils.data
-from torch.utils.tensorboard import SummaryWriter
+import torch.nn as nn
+from torch.optim import Optimizer
+from torch.utils.tensorboard.writer import SummaryWriter
+from tensorboard.program import TensorBoard
+from tensorboard.default import PLUGIN_LOADERS, get_assets_zip_provider
 
 
-from typing import *
+from typing import Callable, Collection, Iterable
 
 import datetime
-
-
+from .trainer_progress import TrainProgress
 
 
 class Trainer:
     """A class which trains models."""
 
-    def __init__(self):
+    def __init__(self, log_dir: str = 'runs'):
         """Initialize the trainer."""
         self.progress: TrainProgress | None = None
-        self.writer: SummaryWriter | None = None
+        self.writer = SummaryWriter(log_dir=log_dir)
+        self.tensorboard = TensorBoard(PLUGIN_LOADERS, get_assets_zip_provider())
+        self.tensorboard.configure(argv=['--logdir', log_dir])
+        url = self.tensorboard.launch()
+        print(f"Tensorflow started on {url}")
 
     def train(
-        self: 'Trainer',
-        model: torch.nn.Module,
-        train_loader: torch.utils.data.DataLoader,
+        self,
+        model: nn.Module,
+        train_loader: Collection[torch.Tensor],
         epochs: int,
-        optimizer: torch.optim.Optimizer,
+        optimizer: Optimizer,
         criterion: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
-        val_loader: torch.utils.data.DataLoader | None = None,
-        test_loader: torch.utils.data.DataLoader | None = None,
-        metrics: List[Callable[[torch.Tensor,
-                                torch.Tensor], torch.Tensor]] = [],
-        epoch_callbacks: List[Callable[[int, torch.nn.Module], None]] = [],
+        val_loader: Collection[torch.Tensor] | None = None,
+        test_loader: Collection[torch.Tensor] | None = None,
+        metrics: list[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = [],
+        epoch_callbacks: Iterable[Callable[[int, int, nn.Module, 'Trainer'], None]] = [],
     ):
         """Train the model for the given number of epochs.
 
         Args:
-            model (torch.nn.Module): The model to train.
+            model (nn.Module): The model to train.
             train_loader (torch.utils.data.DataLoader): The training dataset.
             epochs (int): The number of epochs to train the model for.
             optimizer (torch.optim.Optimizer): The optimizer to use.
@@ -42,18 +47,16 @@ class Trainer:
             val_loader (torch.utils.data.DataLoader, optional): The validation dataset. Defaults to None.
             test_loader (torch.utils.data.DataLoader, optional): The test dataset. Defaults to None.
             metrics (List[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]], optional): The metrics to use. Defaults to [].
-            epoch_callbacks (List[Callable[[int, torch.nn.Module], None]], optional): The callbacks to call at the end of each epoch. Defaults to [].
+            epoch_callbacks (List[Callable[[int, nn.Module], None]], optional): The callbacks to call at the end of each epoch. Defaults to [].
         """
-        self.writer = SummaryWriter(log_dir='runs')
         self.date_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        with TrainProgress(
+        self.progress = TrainProgress(
             nb_epochs=epochs,
             train_size=len(train_loader),
             val_size=len(val_loader) if val_loader else 0,
             test_size=len(test_loader) if test_loader else 0,
-        ) as progress:
-            self.progress = progress
-
+        )
+        with self.progress:
             for epoch_i in range(epochs):
                 self.train_epoch(
                     model,
@@ -70,7 +73,7 @@ class Trainer:
                         metrics + [criterion],
                     )
                 for callback in epoch_callbacks:
-                    callback(epoch_i=epoch_i, epochs=epochs, model=model, trainer=self)
+                    callback(epoch_i, epochs, model, self)
             if test_loader:
                 self.test(
                     model,
@@ -80,10 +83,10 @@ class Trainer:
         self.writer.close()
 
     def train_epoch(
-        self: 'Trainer',
-        model: torch.nn.Module,
-        train_loader: torch.utils.data.DataLoader,
-        optimizer: torch.optim.Optimizer,
+        self,
+        model: nn.Module,
+        train_loader: Collection[torch.Tensor],
+        optimizer: Optimizer,
         criterion: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
         metrics: list[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]],
         epoch_i: int,
@@ -91,7 +94,7 @@ class Trainer:
         """Train the model for one epoch.
 
         Args:
-            model (torch.nn.Module): The model to train.
+            model (nn.Module): The model to train.
             train_loader (torch.utils.data.DataLoader): The training dataset.
             optimizer (torch.optim.Optimizer): The optimizer to use.
             criterion (Callable[[torch.Tensor, torch.Tensor], torch.Tensor]): The loss function to use.
@@ -121,15 +124,15 @@ class Trainer:
         self.writer.add_scalars('Criterion/train', {self.date_time: loss.item()}, epoch_i)
 
     def validate(
-        self: 'Trainer',
-        model: torch.nn.Module,
-        val_loader: torch.utils.data.DataLoader,
+        self,
+        model: nn.Module,
+        val_loader: Collection[torch.Tensor],
         metrics: list[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]],
     ):
         """Validate the model on the given validation dataset.
 
         Args:
-            model (torch.nn.Module): The model to validate.
+            model (nn.Module): The model to validate.
             val_loader (torch.utils.data.DataLoader): The validation dataset.
             mectrics (list[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]]): The metrics to use.
         """
@@ -150,15 +153,15 @@ class Trainer:
                 })
 
     def test(
-        self: 'Trainer',
-        model: torch.nn.Module,
-        test_loader: torch.utils.data.DataLoader,
+        self,
+        model: nn.Module,
+        test_loader: Collection[torch.Tensor],
         metrics: list[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]],
     ):
         """Test the model on the given test dataset.
 
         Args:
-            model (torch.nn.Module): The model to test.
+            model (nn.Module): The model to test.
             test_loader (torch.utils.data.DataLoader): The test dataset.
             mectrics (list[Callable[[torch.Tensor, torch.Tensor], torch.Tensor]]): The metrics to use.
         """

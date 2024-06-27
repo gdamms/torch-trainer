@@ -7,7 +7,7 @@ class TrainProgress(Progress):
     """A progress bar which tracks the progress of training epochs."""
 
     def __init__(
-        self: 'TrainProgress',
+        self,
         nb_epochs: int,
         train_size: int,
         val_size: int = 0,
@@ -44,7 +44,7 @@ class TrainProgress(Progress):
         self.val_values: list[dict[str, list[float]]] = []
         self.test_values: dict[str, list[float]] = {}
 
-    def get_renderables(self: 'TrainProgress') -> Iterable[RenderableType]:
+    def get_renderables(self) -> Iterable[RenderableType]:
         """Override the default renderables to display the epoch number."""
         pad = len(f"{self.nb_epochs}")
         for task_i, task in enumerate(self.tasks):
@@ -111,7 +111,7 @@ class TrainProgress(Progress):
 
             yield self.make_tasks_table([task])
 
-    def step_test(self: 'TrainProgress', count: int) -> bool:
+    def step_test(self, count: int) -> bool:
         """Advance the progress bar by the given number of steps.
 
         Args:
@@ -150,7 +150,7 @@ class TrainProgress(Progress):
         self.update(self.total_task, advance=count)
         return True
 
-    def step_val(self: 'TrainProgress', count: int) -> bool:
+    def step_val(self, count: int) -> bool:
         """Advance the progress bar by the given number of steps.
 
         Args:
@@ -190,7 +190,7 @@ class TrainProgress(Progress):
 
         raise RuntimeError("Progress bar already finished.")
 
-    def step_train(self: 'TrainProgress', count: int) -> bool:
+    def step_train(self, count: int) -> bool:
         """Advance the progress bar by the given number of steps.
 
         Args:
@@ -215,7 +215,7 @@ class TrainProgress(Progress):
         self.update(self.total_task, advance=count)
         return True
 
-    def step(self: 'TrainProgress', count: int = 1):
+    def step(self, count: int = 1):
         """Advance the progress bar by the given number of steps.
 
         Args:
@@ -232,7 +232,7 @@ class TrainProgress(Progress):
 
         raise RuntimeError("Progress bar already finished.")
 
-    def new_train_values(self: 'TrainProgress', values: dict[str, Any]):
+    def new_train_values(self, values: dict[str, Any]):
         """Update the progress bar with new values.
 
         Args:
@@ -242,7 +242,7 @@ class TrainProgress(Progress):
             current_value = self.train_values[-1].get(key, [])
             self.train_values[-1][key] = current_value + [value]
 
-    def new_val_values(self: 'TrainProgress', values: dict[str, Any]):
+    def new_val_values(self, values: dict[str, Any]):
         """Update the progress bar with new values.
 
         Args:
@@ -252,7 +252,7 @@ class TrainProgress(Progress):
             current_value = self.val_values[-1].get(key, [])
             self.val_values[-1][key] = current_value + [value]
 
-    def new_test_values(self: 'TrainProgress', values: dict[str, Any]):
+    def new_test_values(self, values: dict[str, Any]):
         """Update the progress bar with new values.
 
         Args:
