@@ -1,5 +1,6 @@
-from typing import *
+from typing import Any, Iterable
 from rich.progress import Progress, ProgressColumn, BarColumn, TimeRemainingColumn, TimeElapsedColumn, TaskID
+from rich.console import RenderableType
 
 
 class TrainProgress(Progress):
@@ -40,10 +41,10 @@ class TrainProgress(Progress):
             total=nb_epochs * (train_size + val_size) + test_size,
         )
         self.train_values: list[dict[str, list[float]]] = []
-        self.val_values = []
-        self.test_values = {}
+        self.val_values: list[dict[str, list[float]]] = []
+        self.test_values: dict[str, list[float]] = {}
 
-    def get_renderables(self: 'TrainProgress'):
+    def get_renderables(self: 'TrainProgress') -> Iterable[RenderableType]:
         """Override the default renderables to display the epoch number."""
         pad = len(f"{self.nb_epochs}")
         for task_i, task in enumerate(self.tasks):
@@ -64,7 +65,7 @@ class TrainProgress(Progress):
                     if task_i < len(self.tasks) - self.console.height + 1:
                         continue
 
-                epoch_id = task.fields.get("epoch_id") or 1
+                epoch_id: int = task.fields.get("epoch_id", 1)
                 self.columns = (
                     f"Train {epoch_id:{pad}}:",
                     BarColumn(),
@@ -72,7 +73,8 @@ class TrainProgress(Progress):
                     "•",
                     TimeElapsedColumn(),
                     '•',
-                    ' | '.join(f"{key}: {value[-1]:.4f}" for key, value in self.train_values[epoch_id-1].items()),
+                    ' | '.join(f"{key}: {
+                               value[-1]:.4f}" for key, value in self.train_values[epoch_id-1].items())
                 )
 
             # The val tasks.
@@ -82,26 +84,26 @@ class TrainProgress(Progress):
                     if task_i < len(self.tasks) - self.console.height + 1:
                         continue
 
-                epoch_id = task.fields.get("epoch_id")
+                epoch_id: int = task.fields.get("epoch_id", 1)
                 self.columns = (
                     f"Valid {epoch_id:{pad}}:",
-                    rich.progress.BarColumn(),
+                    BarColumn(),
                     f"{task.completed}/{task.total}",
                     "•",
-                    rich.progress.TimeElapsedColumn(),
+                    TimeElapsedColumn(),
                     '•',
-                    ' | '.join(
-                        f"{key}: {value[-1]:.4f}" for key, value in self.val_values[epoch_id-1].items()),
+                    ' | '.join(f"{key}: {
+                               value[-1]:.4f}" for key, value in self.val_values[epoch_id-1].items()),
                 )
 
             # The test task.
             if task.fields.get("progress_type") == "test":
                 self.columns = (
                     f"Test:",
-                    rich.progress.BarColumn(),
+                    BarColumn(),
                     f"{task.completed}/{task.total}",
                     "•",
-                    rich.progress.TimeElapsedColumn(),
+                    TimeElapsedColumn(),
                     '•',
                     ' | '.join(
                         f"{key}: {value[-1]:.4f}" for key, value in self.test_values.items()),
@@ -144,10 +146,9 @@ class TrainProgress(Progress):
             self.update(self.total_task, advance=count)
             return True
 
-        if self.test_task is not None:
-            self.update(self.test_task, advance=count)
-            self.update(self.total_task, advance=count)
-            return True
+        self.update(self.test_task, advance=count)
+        self.update(self.total_task, advance=count)
+        return True
 
     def step_val(self: 'TrainProgress', count: int) -> bool:
         """Advance the progress bar by the given number of steps.
@@ -173,7 +174,7 @@ class TrainProgress(Progress):
         ):
             self.val_values.append({})
             self.val_tasks.append(self.add_task(
-                f"Val {len(self.val_tasks)+1}",
+                f"Valid {len(self.val_tasks)+1}",
                 progress_type="val",
                 epoch_id=len(self.val_tasks)+1,
                 total=self.val_size,
@@ -186,6 +187,8 @@ class TrainProgress(Progress):
             self.update(self.val_tasks[-1], advance=count)
             self.update(self.total_task, advance=count)
             return True
+
+        raise RuntimeError("Progress bar already finished.")
 
     def step_train(self: 'TrainProgress', count: int) -> bool:
         """Advance the progress bar by the given number of steps.
