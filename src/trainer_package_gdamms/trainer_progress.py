@@ -59,6 +59,11 @@ class TrainProgress(rich.progress.Progress):
 
             # The train tasks.
             if task.fields.get("progress_type") == "train":
+                # If there are too many tasks to display, only show the last few.
+                if not self.finished and len(self.tasks) > self.console.height:
+                    if task_i < len(self.tasks) - self.console.height + 1:
+                        continue
+
                 epoch_id = task.fields.get("epoch_id")
                 self.columns = (
                     f"Train {epoch_id:{pad}}:",
@@ -73,9 +78,14 @@ class TrainProgress(rich.progress.Progress):
 
             # The val tasks.
             if task.fields.get("progress_type") == "val":
+                # If there are too many tasks to display, only show the last few.
+                if not self.finished and len(self.tasks) > self.console.height:
+                    if task_i < len(self.tasks) - self.console.height + 1:
+                        continue
+
                 epoch_id = task.fields.get("epoch_id")
                 self.columns = (
-                    f"Val {epoch_id:{pad}}:",
+                    f"Valid {epoch_id:{pad}}:",
                     rich.progress.BarColumn(),
                     f"{task.completed}/{task.total}",
                     "•",
