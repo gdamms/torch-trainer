@@ -46,14 +46,16 @@ class TrainProgress(Progress):
 
     def get_renderables(self) -> Iterable[RenderableType]:
         """Override the default renderables to display the epoch number."""
-        pad = len(f"{self.nb_epochs}")
+        epoch_pad = len(f"{self.nb_epochs}")
         for task_i, task in enumerate(self.tasks):
+            step_pad = len(f"{task.total}")
+
             # The total task.
             if task.fields.get("progress_type") == "total":
                 self.columns = (
                     f"Working:",
                     BarColumn(),
-                    f"{len(self.train_tasks):{pad}}/{self.nb_epochs}",
+                    f"{len(self.train_tasks):{epoch_pad}}/{self.nb_epochs}",
                     "•",
                     TimeRemainingColumn(),
                 )
@@ -67,14 +69,13 @@ class TrainProgress(Progress):
 
                 epoch_id: int = task.fields.get("epoch_id", 1)
                 self.columns = (
-                    f"Train {epoch_id:{pad}}:",
+                    f"Train {epoch_id:{epoch_pad}}:",
                     BarColumn(),
-                    f"{task.completed}/{task.total}",
+                    f"{task.completed:{step_pad}}/{task.total}",
                     "•",
                     TimeElapsedColumn(),
                     '•',
-                    ' | '.join(f"{key}: {
-                               value[-1]:.4f}" for key, value in self.train_values[epoch_id-1].items())
+                    ' | '.join(f"{key}: {value[-1]:.4f}" for key, value in self.train_values[epoch_id-1].items())
                 )
 
             # The val tasks.
@@ -86,14 +87,13 @@ class TrainProgress(Progress):
 
                 epoch_id: int = task.fields.get("epoch_id", 1)
                 self.columns = (
-                    f"Valid {epoch_id:{pad}}:",
+                    f"Valid {epoch_id:{epoch_pad}}:",
                     BarColumn(),
-                    f"{task.completed}/{task.total}",
+                    f"{task.completed:{step_pad}}/{task.total}",
                     "•",
                     TimeElapsedColumn(),
                     '•',
-                    ' | '.join(f"{key}: {
-                               value[-1]:.4f}" for key, value in self.val_values[epoch_id-1].items()),
+                    ' | '.join(f"{key}: {value[-1]:.4f}" for key, value in self.val_values[epoch_id-1].items()),
                 )
 
             # The test task.
@@ -101,12 +101,11 @@ class TrainProgress(Progress):
                 self.columns = (
                     f"Test:",
                     BarColumn(),
-                    f"{task.completed}/{task.total}",
+                    f"{task.completed:{step_pad}}/{task.total}",
                     "•",
                     TimeElapsedColumn(),
                     '•',
-                    ' | '.join(
-                        f"{key}: {value[-1]:.4f}" for key, value in self.test_values.items()),
+                    ' | '.join(f"{key}: {value[-1]:.4f}" for key, value in self.test_values.items()),
                 )
 
             yield self.make_tasks_table([task])
@@ -188,7 +187,8 @@ class TrainProgress(Progress):
             self.update(self.total_task, advance=count)
             return True
 
-        raise RuntimeError("Progress bar already finished.")
+        # If the validation task is complete, begin next training epoch.
+        return False
 
     def step_train(self, count: int) -> bool:
         """Advance the progress bar by the given number of steps.
@@ -219,7 +219,10 @@ class TrainProgress(Progress):
         """Advance the progress bar by the given number of steps.
 
         Args:
-            count (int): The number of steps to advance the progress bar by.
+            count (int, optional): The number of steps to advance the progress bar by. Defaults to 1.
+
+        Raises:
+            RuntimeError: _description_
         """
         if self.step_test(count):
             return
