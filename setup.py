@@ -14,6 +14,5 @@ setup(
     install_requires=[
         'rich',
         'torch',
-        'tensorboard',
     ],
 )

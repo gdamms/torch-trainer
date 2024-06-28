@@ -3,8 +3,6 @@ import torch.nn as nn
 from torch.optim import Optimizer
 from torch.utils.tensorboard.writer import SummaryWriter
 from torch.utils.data import DataLoader
-# from tensorboard.program import TensorBoard
-# from tensorboard.default import PLUGIN_LOADERS, get_assets_zip_provider
 
 from typing import Callable, Iterable
 
@@ -16,13 +14,13 @@ class Trainer:
     """A class which trains models."""
 
     def __init__(self, log_dir: str = f'runs.log/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}'):
-        """Initialize the trainer."""
+        """Initialize the trainer
+
+        Args:
+            log_dir (str, optional): The directory to save the logs. Defaults to f'runs.log/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}'.
+        """
         self.progress: TrainProgress | None = None
         self.writer = SummaryWriter(log_dir=log_dir)
-        # self.tensorboard = TensorBoard(PLUGIN_LOADERS, get_assets_zip_provider())
-        # self.tensorboard.configure(argv=['--logdir', log_dir])
-        # url = self.tensorboard.launch()
-        # print(f"Tensorflow started on {url}")
 
     def train(
         self,
@@ -50,6 +48,7 @@ class Trainer:
             epoch_callbacks (List[Callable[[int, nn.Module], None]], optional): The callbacks to call at the end of each epoch. Defaults to [].
         """
         self.date_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+
         self.progress = TrainProgress(
             nb_epochs=epochs,
             train_size=len(train_loader),
@@ -71,7 +70,7 @@ class Trainer:
                         epoch_i,
                         model,
                         val_loader,
-                        {'loss': criterion} | metrics,
+                        {'Loss': criterion} | metrics,
                     )
                 for callback in epoch_callbacks:
                     callback(epoch_i, epochs, model, self)
@@ -79,7 +78,7 @@ class Trainer:
                 self.test(
                     model,
                     test_loader,
-                    {'loss': criterion} | metrics,
+                    {'Loss': criterion} | metrics,
                 )
         self.writer.close()
 
@@ -118,11 +117,12 @@ class Trainer:
             optimizer.step()
 
             # Update the progress bar.
-            values = {'train_loss': loss.item()} | {f'train_{name}': metric(output, labels).item() for name, metric in metrics.items()}
+            values = {'train_loss': loss.item()} | \
+                {f'train_{name}': metric(output, labels).item() for name, metric in metrics.items()}
             self.progress.step()
             self.progress.new_train_values(values)
 
-        self.writer.add_scalars('Loss/train', {self.date_time: loss.item()}, epoch_i)
+        self.writer.add_scalar(f'Loss/Train', loss.item(), epoch_i + 1)
 
     def validate(
         self,
@@ -143,20 +143,20 @@ class Trainer:
 
         model.eval()
         with torch.no_grad():
-            metrics_sum = {f'valid_{name}': 0.0 for name in metrics}
+            metrics_sum = {name: 0.0 for name in metrics}
             for b_i, batch in enumerate(val_loader):
                 inputs = batch[:-1]
                 labels = batch[-1]
                 output = model(*inputs)
-                values = {f'valid_{name}': metric(output, labels) for name, metric in metrics.items()}
+                values = {name: metric(
+                    output, labels) for name, metric in metrics.items()}
                 for key, value in values.items():
                     metrics_sum[key] += value.item()
                 self.progress.step()
-                self.progress.new_val_values({
-                    key: value / (b_i + 1) for key, value in metrics_sum.items()
-                })
+                self.progress.new_val_values({key: value / (b_i + 1) for key, value in metrics_sum.items()})
 
-            self.writer.add_scalars('Metrics/valid', metrics_sum, epoch_i)
+            for key, value in metrics_sum.items():
+                self.writer.add_scalar(f'{key}/Validation', value / len(val_loader), epoch_i + 1)
 
     def test(
         self,
@@ -176,15 +176,17 @@ class Trainer:
 
         model.eval()
         with torch.no_grad():
-            metrics_sum = {f'test_{name}': 0.0 for name in metrics}
+            metrics_sum = {name: 0.0 for name in metrics}
             for b_i, batch in enumerate(test_loader):
                 inputs = batch[:-1]
                 labels = batch[-1]
                 output = model(*inputs)
-                values = {f'test_{name}': metric(output, labels) for name, metric in metrics.items()}
+                values = {name: metric(
+                    output, labels) for name, metric in metrics.items()}
                 for key, value in values.items():
                     metrics_sum[key] += value.item()
                 self.progress.step()
-                self.progress.new_test_values({
-                    key: value / (b_i + 1) for key, value in metrics_sum.items()
-                })
+                self.progress.new_test_values({key: value / (b_i + 1) for key, value in metrics_sum.items()})
+
+            for key, value in metrics_sum.items():
+                self.writer.add_scalar(f'{key}/Test', value / len(test_loader), self.progress.nb_epochs)
