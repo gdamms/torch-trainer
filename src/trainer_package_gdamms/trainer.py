@@ -1,3 +1,5 @@
+import os
+
 import torch
 import torch.nn as nn
 from torch.optim import Optimizer
@@ -20,7 +22,6 @@ class Trainer:
             log_dir (str, optional): The directory to save the logs. Defaults to f'runs.log/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}'.
         """
         self.progress: TrainProgress | None = None
-        self.writer = SummaryWriter(log_dir=log_dir)
 
     def train(
         self,
@@ -48,6 +49,18 @@ class Trainer:
             epoch_callbacks (List[Callable[[int, nn.Module], None]], optional): The callbacks to call at the end of each epoch. Defaults to [].
         """
         self.date_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+        model_name = model.__class__.__name__
+
+        run_dir = 'runs'
+        model_dir = os.path.join(run_dir, model_name)
+        checkpoint_dir = os.path.join(model_dir, 'checkpoints')
+        
+        os.makedirs(checkpoint_dir, exist_ok=True)
+
+        self.writer = SummaryWriter(f'runs/{model_name}')
+
+        if not hasattr(model, 'trainer_epoch'):
+            model.trainer_epoch = torch.Tensor([0]).to(torch.int64)
 
         self.progress = TrainProgress(
             nb_epochs=epochs,
@@ -72,6 +85,10 @@ class Trainer:
                         val_loader,
                         {'Loss': criterion} | metrics,
                     )
+
+                model.trainer_epoch += 1
+                torch.save(model, f'runs/{model_name}/checkpoints/{model_name}_e{model.trainer_epoch.item()}.pt')
+
                 for callback in epoch_callbacks:
                     callback(epoch_i, epochs, model, self)
             if test_loader:
@@ -122,7 +139,7 @@ class Trainer:
             self.progress.step()
             self.progress.new_train_values(values)
 
-        self.writer.add_scalar(f'Loss/Train', loss.item(), epoch_i + 1)
+        self.writer.add_scalar(f'Loss/Train', loss.item(), epoch_i + 6)
 
     def validate(
         self,

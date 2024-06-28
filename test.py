@@ -22,7 +22,7 @@ def main():
     trainer = Trainer()
     model = Model()
     dataset = datasets.MNIST(
-        root='data.log',
+        root='data',
         train=True,
         download=True,
         transform=transforms.Compose([
@@ -36,7 +36,7 @@ def main():
         ]),
     )
     dataset_val = datasets.MNIST(
-        root='data.log',
+        root='data',
         train=False,
         download=True,
         transform=transforms.Compose([
