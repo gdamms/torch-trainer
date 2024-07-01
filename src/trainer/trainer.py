@@ -24,6 +24,23 @@ def train(
     metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {},
     epoch_callbacks: Iterable[Callable[[int, int, nn.Module, 'Trainer'], None]] = [],
 ):
+    """This a function that trains a model.
+
+    During training, the progress is displayed using progress bars. You can also find saved checkpoints in the `runs`
+    directory. The `runs` directory is also used to store tensorboard logs. The tensorboard logs can be viewed by
+    running `tensorboard --logdir=runs` in the terminal.
+
+    Args:
+        model (nn.Module): The model to train.
+        train_loader (DataLoader[torch.Tensor]): The data loader for training.
+        epochs (int): The number of epochs to train.
+        optimizer (Optimizer): The optimizer to use.
+        criterion (Callable[[torch.Tensor, torch.Tensor], torch.Tensor]): The loss function.
+        val_loader (DataLoader[torch.Tensor] | None, optional): The data loader for validation.
+        test_loader (DataLoader[torch.Tensor] | None, optional): The data loader for testing.
+        metrics (dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]], optional): The metrics to evaluate.
+        epoch_callbacks (Iterable[Callable[[int, int, nn.Module, &#39;Trainer&#39;], None]], optional): The callbacks to run after each epoch.
+    """
     trainer = Trainer(
         model,
         train_loader,
