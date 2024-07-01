@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name='trainer',
+    name='torch-trainer',
     version='0.1.0',
     license="MIT",
     description='A simple library to train pytorch models',
@@ -14,5 +14,6 @@ setup(
     install_requires=[
         'rich',
         'torch',
+        'tensorboard',
     ],
 )
