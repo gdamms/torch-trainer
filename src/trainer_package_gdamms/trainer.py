@@ -10,17 +10,14 @@ from typing import Callable, Iterable
 
 import datetime
 from .trainer_progress import TrainProgress
+from .utils import set_model_attr, get_model_attr
 
 
 class Trainer:
     """A class which trains models."""
 
-    def __init__(self, log_dir: str = f'runs.log/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}'):
-        """Initialize the trainer
-
-        Args:
-            log_dir (str, optional): The directory to save the logs. Defaults to f'runs.log/{datetime.datetime.now().strftime("%Y%m%d-%H%M%S")}'.
-        """
+    def __init__(self):
+        """Initialize the trainer."""
         self.progress: TrainProgress | None = None
 
     def train(
@@ -49,18 +46,26 @@ class Trainer:
             epoch_callbacks (List[Callable[[int, nn.Module], None]], optional): The callbacks to call at the end of each epoch. Defaults to [].
         """
         self.date_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        model_name = model.__class__.__name__
+        model_name = model.__class__.__name__ + '_' + self.date_time
+
+        if not hasattr(model, 'trainer_epoch'):
+            set_model_attr(model, 'trainer_epoch', '0')
+        trainer_epoch = int(get_model_attr(model, 'trainer_epoch'))
+        print(trainer_epoch)
+        if not hasattr(model, 'model_name'):
+            set_model_attr(model, 'model_name', model_name)
+        model_name = get_model_attr(model, 'model_name')
 
         run_dir = 'runs'
         model_dir = os.path.join(run_dir, model_name)
         checkpoint_dir = os.path.join(model_dir, 'checkpoints')
-        
+
         os.makedirs(checkpoint_dir, exist_ok=True)
 
         self.writer = SummaryWriter(f'runs/{model_name}')
 
-        if not hasattr(model, 'trainer_epoch'):
-            model.trainer_epoch = torch.Tensor([0]).to(torch.int64)
+        self.epoch_start = trainer_epoch
+        self.epoch_end = self.epoch_start + epochs
 
         self.progress = TrainProgress(
             nb_epochs=epochs,
@@ -69,7 +74,7 @@ class Trainer:
             test_size=len(test_loader) if test_loader else 0,
         )
         with self.progress:
-            for epoch_i in range(epochs):
+            for epoch_i in range(self.epoch_start, self.epoch_end):
                 self.train_epoch(
                     epoch_i,
                     model,
@@ -86,8 +91,10 @@ class Trainer:
                         {'Loss': criterion} | metrics,
                     )
 
-                model.trainer_epoch += 1
-                torch.save(model, f'runs/{model_name}/checkpoints/{model_name}_e{model.trainer_epoch.item()}.pt')
+                trainer_epoch += 1
+                set_model_attr(model, 'trainer_epoch', str(trainer_epoch))
+
+                torch.save(model, f'runs/{model_name}/checkpoints/e{trainer_epoch}.pt')
 
                 for callback in epoch_callbacks:
                     callback(epoch_i, epochs, model, self)
@@ -139,7 +146,7 @@ class Trainer:
             self.progress.step()
             self.progress.new_train_values(values)
 
-        self.writer.add_scalar(f'Loss/Train', loss.item(), epoch_i + 6)
+        self.writer.add_scalar(f'Loss/Train', loss.item(), epoch_i + 1)
 
     def validate(
         self,
@@ -206,4 +213,4 @@ class Trainer:
                 self.progress.new_test_values({key: value / (b_i + 1) for key, value in metrics_sum.items()})
 
             for key, value in metrics_sum.items():
-                self.writer.add_scalar(f'{key}/Test', value / len(test_loader), self.progress.nb_epochs)
+                self.writer.add_scalar(f'{key}/Test', value / len(test_loader), self.epoch_end)

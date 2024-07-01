@@ -21,6 +21,7 @@ class Model(torch.nn.Module):
 def main():
     trainer = Trainer()
     model = Model()
+    # model = torch.load('runs/Model_20240701-104729/checkpoints/e5.pt')
     dataset = datasets.MNIST(
         root='data',
         train=True,
