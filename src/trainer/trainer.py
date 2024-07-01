@@ -70,6 +70,7 @@ class Trainer:
     TRAINER_EPOCH = 'trainer_epoch'
 
     # Trainer works.
+    UNKNOW_WORK = -1
     TRAIN_WORK = 0
     VALID_WORK = 1
     TEST_WORK = 2
@@ -140,7 +141,7 @@ class Trainer:
 
         # Initialize the trainer attributes.
         self.epoch_i = 0
-        self.work = None
+        self.work = -1
 
     def start(self):
         """Start training the model."""
@@ -155,7 +156,7 @@ class Trainer:
                 torch.save(self.model, f'runs/{self.run_name}/checkpoints/{self.trainer_epoch:04}e.pt')
 
                 for callback in self.epoch_callbacks:
-                    callback(epoch_i, self.epochs, self.model, self)
+                    callback(self.epoch_i, self.epochs, self.model, self)
 
             self.test()
 

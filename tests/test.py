@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
-from src.trainer_package_gdamms.trainer import train
+from src.trainer.trainer import train
 
 
 class Model(torch.nn.Module):
