@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 
-from src.trainer_package_gdamms.trainer import Trainer
+from src.trainer_package_gdamms.trainer import train
 
 
 class Model(torch.nn.Module):
@@ -19,9 +19,8 @@ class Model(torch.nn.Module):
 
 
 def main():
-    trainer = Trainer()
-    model = Model()
-    # model = torch.load('runs/Model_20240701-104729/checkpoints/e5.pt')
+    # model = Model()
+    model = torch.load('runs/Model_20240701-155330/checkpoints/0005e.pt')
     dataset = datasets.MNIST(
         root='data',
         train=True,
@@ -52,7 +51,7 @@ def main():
     )
     data_loader: DataLoader[torch.Tensor] = DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4)
     data_loader_val: DataLoader[torch.Tensor] = DataLoader(dataset_val, batch_size=32, shuffle=True, num_workers=4)
-    trainer.train(
+    train(
         model,
         data_loader,
         epochs=5,

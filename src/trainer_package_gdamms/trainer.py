@@ -13,14 +13,56 @@ from .trainer_progress import TrainProgress
 from .utils import set_model_attr, get_model_attr
 
 
+def train(
+    model: nn.Module,
+    train_loader: DataLoader[torch.Tensor],
+    epochs: int,
+    optimizer: Optimizer,
+    criterion: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
+    val_loader: DataLoader[torch.Tensor] | None = None,
+    test_loader: DataLoader[torch.Tensor] | None = None,
+    metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {},
+    epoch_callbacks: Iterable[Callable[[int, int, nn.Module, 'Trainer'], None]] = [],
+):
+    trainer = Trainer(
+        model,
+        train_loader,
+        epochs,
+        optimizer,
+        criterion,
+        val_loader,
+        test_loader,
+        metrics,
+        epoch_callbacks,
+    )
+    trainer.start()
+
+
 class Trainer:
     """A class which trains models."""
 
-    def __init__(self):
-        """Initialize the trainer."""
-        self.progress: TrainProgress | None = None
+    # Directories.
+    RUNS_DIR = 'runs'
+    CHECKPOINTS_DIR = 'checkpoints'
 
-    def train(
+    # Date format.
+    DATE_FORMAT = '%Y%m%d-%H%M%S'
+
+    # Model attributes.
+    RUN_NAME = 'run_name'
+    TRAINER_EPOCH = 'trainer_epoch'
+
+    # Trainer works.
+    TRAIN_WORK = 0
+    VALID_WORK = 1
+    TEST_WORK = 2
+    WORK_TAGS = {
+        TRAIN_WORK: 'Train',
+        VALID_WORK: 'Validation',
+        TEST_WORK: 'Test',
+    }
+
+    def __init__(
         self,
         model: nn.Module,
         train_loader: DataLoader[torch.Tensor],
@@ -32,185 +74,144 @@ class Trainer:
         metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {},
         epoch_callbacks: Iterable[Callable[[int, int, nn.Module, 'Trainer'], None]] = [],
     ):
-        """Train the model for the given number of epochs.
+        """Initialize the trainer."""
+        # Set the parameters.
+        self.model = model
+        self.train_loader = train_loader
+        self.epochs = epochs
+        self.optimizer = optimizer
+        self.criterion = criterion
+        self.val_loader = val_loader
+        self.test_loader = test_loader
+        self.metrics = metrics
+        self.epoch_callbacks = epoch_callbacks
 
-        Args:
-            model (nn.Module): The model to train.
-            train_loader (torch.utils.data.DataLoader): The training dataset.
-            epochs (int): The number of epochs to train the model for.
-            optimizer (torch.optim.Optimizer): The optimizer to use.
-            criterion (Callable[[torch.Tensor, torch.Tensor], torch.Tensor]): The loss function to use.
-            val_loader (torch.utils.data.DataLoader, optional): The validation dataset. Defaults to None.
-            test_loader (torch.utils.data.DataLoader, optional): The test dataset. Defaults to None.
-            metrics (dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]], optional): The metrics to use. Defaults to [].
-            epoch_callbacks (List[Callable[[int, nn.Module], None]], optional): The callbacks to call at the end of each epoch. Defaults to [].
-        """
-        self.date_time = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        model_name = model.__class__.__name__ + '_' + self.date_time
+        # Set the run parameters.
+        self.model_name = model.__class__.__name__
+        self.date_time = datetime.datetime.now().strftime(Trainer.DATE_FORMAT)
 
-        if not hasattr(model, 'trainer_epoch'):
-            set_model_attr(model, 'trainer_epoch', '0')
-        trainer_epoch = int(get_model_attr(model, 'trainer_epoch'))
-        print(trainer_epoch)
-        if not hasattr(model, 'model_name'):
-            set_model_attr(model, 'model_name', model_name)
-        model_name = get_model_attr(model, 'model_name')
-
-        run_dir = 'runs'
-        model_dir = os.path.join(run_dir, model_name)
-        checkpoint_dir = os.path.join(model_dir, 'checkpoints')
-
-        os.makedirs(checkpoint_dir, exist_ok=True)
-
-        self.writer = SummaryWriter(f'runs/{model_name}')
-
-        self.epoch_start = trainer_epoch
+        # Set the trainer epoch attributes.
+        trainer_epoch = get_model_attr(model, Trainer.TRAINER_EPOCH)
+        if trainer_epoch is None:
+            self.trainer_epoch = 0
+            set_model_attr(model, Trainer.TRAINER_EPOCH, str(self.trainer_epoch))
+        else:
+            self.trainer_epoch = int(trainer_epoch)
+        self.epoch_start = self.trainer_epoch
         self.epoch_end = self.epoch_start + epochs
 
+        # Set the run name and directories.
+        self.run_name = get_model_attr(model, Trainer.RUN_NAME)
+        if self.run_name is None:
+            self.run_name = f'{self.model_name}_{self.date_time}'
+            set_model_attr(model, Trainer.RUN_NAME, self.run_name)
+        self.run_dir = os.path.join(self.RUNS_DIR, self.run_name)
+        os.makedirs(self.run_dir, exist_ok=True)
+        self.checkpoint_dir = os.path.join(self.run_dir, Trainer.CHECKPOINTS_DIR)
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+
+        # Initialize the tensorboard writer.
+        self.writer = SummaryWriter(self.run_dir)
+
+        # Initialize the progress bar.
         self.progress = TrainProgress(
             nb_epochs=epochs,
             train_size=len(train_loader),
             val_size=len(val_loader) if val_loader else 0,
             test_size=len(test_loader) if test_loader else 0,
         )
+
+        # Initialize the trainer attributes.
+        self.epoch_i = 0
+        self.work = None
+
+    def start(self):
+        """Start training the model."""
         with self.progress:
-            for epoch_i in range(self.epoch_start, self.epoch_end):
-                self.train_epoch(
-                    epoch_i,
-                    model,
-                    train_loader,
-                    optimizer,
-                    criterion,
-                    metrics,
-                )
-                if val_loader:
-                    self.validate(
-                        epoch_i,
-                        model,
-                        val_loader,
-                        {'Loss': criterion} | metrics,
-                    )
+            for self.epoch_i in range(self.epoch_start + 1, self.epoch_end + 1):
+                self.train()
+                self.validate()
 
-                trainer_epoch += 1
-                set_model_attr(model, 'trainer_epoch', str(trainer_epoch))
+                self.trainer_epoch += 1
+                set_model_attr(self.model, 'trainer_epoch', str(self.trainer_epoch))
 
-                torch.save(model, f'runs/{model_name}/checkpoints/e{trainer_epoch}.pt')
+                torch.save(self.model, f'runs/{self.run_name}/checkpoints/{self.trainer_epoch:04}e.pt')
 
-                for callback in epoch_callbacks:
-                    callback(epoch_i, epochs, model, self)
-            if test_loader:
-                self.test(
-                    model,
-                    test_loader,
-                    {'Loss': criterion} | metrics,
-                )
+                for callback in self.epoch_callbacks:
+                    callback(epoch_i, self.epochs, self.model, self)
+
+            self.test()
+
         self.writer.close()
 
-    def train_epoch(
-        self,
-        epoch_i: int,
-        model: nn.Module,
-        train_loader: DataLoader[torch.Tensor],
-        optimizer: Optimizer,
-        criterion: Callable[[torch.Tensor, torch.Tensor], torch.Tensor],
-        metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]],
-    ):
-        """Train the model for one epoch.
-
-        Args:
-            epoch_i (int): The current epoch.
-            model (nn.Module): The model to train.
-            train_loader (torch.utils.data.DataLoader): The training dataset.
-            optimizer (torch.optim.Optimizer): The optimizer to use.
-            criterion (Callable[[torch.Tensor, torch.Tensor], torch.Tensor]): The loss function to use.
-            metrics (dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]]): The metrics to use.
-        """
-        assert self.progress is not None  # Ensure the progress bar is initialized.
-
-        model.train()
-        for batch in train_loader:
+    def train(self):
+        """Train the model for one epoch."""
+        self.work = Trainer.TRAIN_WORK
+        self.model.train()
+        for batch in self.train_loader:
             # Seprarate the inputs and labels.
             inputs = batch[:-1]
             labels = batch[-1]
 
             # Train the model.
-            optimizer.zero_grad()
-            output = model(*inputs)
-            loss = criterion(output, labels)
+            self.optimizer.zero_grad()
+            output = self.model(*inputs)
+            loss = self.criterion(output, labels)
             loss.backward()
-            optimizer.step()
+            self.optimizer.step()
 
             # Update the progress bar.
-            values = {'train_loss': loss.item()} | \
-                {f'train_{name}': metric(output, labels).item() for name, metric in metrics.items()}
+            metrics_values = {'loss': loss.item()}
+            metrics_values |= {f'{n}': m(output, labels).item() for n, m in self.metrics.items()}
             self.progress.step()
-            self.progress.new_train_values(values)
+            self.progress.new_train_values(metrics_values)
 
-        self.writer.add_scalar(f'Loss/Train', loss.item(), epoch_i + 1)
+        # Log the loss.
+        work_tag = Trainer.WORK_TAGS[self.work]
+        self.writer.add_scalar(f'Loss/{work_tag}', loss.item(), self.epoch_i)
 
-    def validate(
+    def evaluate(
         self,
-        epoch_i: int,
-        model: nn.Module,
-        val_loader: DataLoader[torch.Tensor],
+        dataloader: DataLoader[torch.Tensor],
         metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]],
     ):
-        """Validate the model on the given validation dataset.
+        """Evaluate the model.
 
         Args:
-            epoch_i (int): The current epoch.
-            model (nn.Module): The model to validate.
-            val_loader (torch.utils.data.DataLoader): The validation dataset.
-            mectrics (dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]]): The metrics to use.
+            dataloader (DataLoader): The data loader to evaluate on.
+            metrics (dict): The metrics to evaluate.
         """
-        assert self.progress is not None  # Ensure the progress bar is initialized.
-
-        model.eval()
+        self.model.eval()
         with torch.no_grad():
             metrics_sum = {name: 0.0 for name in metrics}
-            for b_i, batch in enumerate(val_loader):
+            for b_i, batch in enumerate(dataloader):
+                # Seprarate the inputs and labels.
                 inputs = batch[:-1]
                 labels = batch[-1]
-                output = model(*inputs)
-                values = {name: metric(
-                    output, labels) for name, metric in metrics.items()}
-                for key, value in values.items():
-                    metrics_sum[key] += value.item()
+
+                # Evaluate the model.
+                output = self.model(*inputs)
+                metrics_values = {n: m(output, labels) for n, m in metrics.items()}
+
+                # Update the progress bar.
+                for n, v in metrics_values.items():
+                    metrics_sum[n] += v.item()
                 self.progress.step()
-                self.progress.new_val_values({key: value / (b_i + 1) for key, value in metrics_sum.items()})
+                self.progress.new_val_values({n: v / (b_i + 1) for n, v in metrics_sum.items()})
 
-            for key, value in metrics_sum.items():
-                self.writer.add_scalar(f'{key}/Validation', value / len(val_loader), epoch_i + 1)
+        # Log the metrics.
+        for n, v in metrics_sum.items():
+            work_tag = Trainer.WORK_TAGS[self.work]
+            self.writer.add_scalar(f'{n}/{work_tag}', v / len(dataloader), self.epoch_i)
 
-    def test(
-        self,
-        model: nn.Module,
-        test_loader: DataLoader[torch.Tensor],
-        metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]],
-    ):
-        """Test the model on the given test dataset.
+    def validate(self):
+        """Validate the model."""
+        self.work = Trainer.VALID_WORK
+        if self.val_loader:
+            self.evaluate(self.val_loader, {'Loss': self.criterion} | self.metrics)
 
-        Args:
-            model (nn.Module): The model to test.
-            test_loader (torch.utils.data.DataLoader): The test dataset.
-            criterion (Callable[[torch.Tensor, torch.Tensor], torch.Tensor]): The loss function to use.
-            mectrics (dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]]): The metrics to use.
-        """
-        assert self.progress is not None  # Ensure the progress bar is initialized.
-
-        model.eval()
-        with torch.no_grad():
-            metrics_sum = {name: 0.0 for name in metrics}
-            for b_i, batch in enumerate(test_loader):
-                inputs = batch[:-1]
-                labels = batch[-1]
-                output = model(*inputs)
-                values = {name: metric(
-                    output, labels) for name, metric in metrics.items()}
-                for key, value in values.items():
-                    metrics_sum[key] += value.item()
-                self.progress.step()
-                self.progress.new_test_values({key: value / (b_i + 1) for key, value in metrics_sum.items()})
-
-            for key, value in metrics_sum.items():
-                self.writer.add_scalar(f'{key}/Test', value / len(test_loader), self.epoch_end)
+    def test(self):
+        """Test the model."""
+        self.work = Trainer.TEST_WORK
+        if self.test_loader:
+            self.evaluate(self.test_loader, {'Loss': self.criterion} | self.metrics)

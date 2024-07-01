@@ -58,6 +58,8 @@ class TrainProgress(Progress):
                     f"{len(self.train_tasks):{epoch_pad}}/{self.nb_epochs}",
                     "•",
                     TimeRemainingColumn(),
+                    "|",
+                    TimeElapsedColumn(),
                 )
 
             # The train tasks.
@@ -73,6 +75,8 @@ class TrainProgress(Progress):
                     BarColumn(),
                     f"{task.completed:{step_pad}}/{task.total}",
                     "•",
+                    TimeRemainingColumn(),
+                    "|",
                     TimeElapsedColumn(),
                     '•',
                     ' | '.join(f"{key}: {value[-1]:.4f}" for key, value in self.train_values[epoch_id-1].items())
@@ -91,6 +95,8 @@ class TrainProgress(Progress):
                     BarColumn(),
                     f"{task.completed:{step_pad}}/{task.total}",
                     "•",
+                    TimeRemainingColumn(),
+                    "|",
                     TimeElapsedColumn(),
                     '•',
                     ' | '.join(f"{key}: {value[-1]:.4f}" for key, value in self.val_values[epoch_id-1].items()),
@@ -103,6 +109,8 @@ class TrainProgress(Progress):
                     BarColumn(),
                     f"{task.completed:{step_pad}}/{task.total}",
                     "•",
+                    TimeRemainingColumn(),
+                    "|",
                     TimeElapsedColumn(),
                     '•',
                     ' | '.join(f"{key}: {value[-1]:.4f}" for key, value in self.test_values.items()),
