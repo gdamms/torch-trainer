@@ -22,7 +22,7 @@ def train(
     val_loader: DataLoader[torch.Tensor] | None = None,
     test_loader: DataLoader[torch.Tensor] | None = None,
     metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {},
-    epoch_callbacks: Iterable[Callable[[int, int, nn.Module, 'Trainer'], None]] = [],
+    epoch_callbacks: Iterable[Callable[['Trainer'], None]] = [],
 ):
     """This a function that trains a model.
 
@@ -39,7 +39,7 @@ def train(
         val_loader (DataLoader[torch.Tensor] | None, optional): The data loader for validation.
         test_loader (DataLoader[torch.Tensor] | None, optional): The data loader for testing.
         metrics (dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]], optional): The metrics to evaluate.
-        epoch_callbacks (Iterable[Callable[[int, int, nn.Module, &#39;Trainer&#39;], None]], optional): The callbacks to run after each epoch.
+        epoch_callbacks (Iterable[Callable[[Trainer], None]], optional): The callbacks to run after each epoch.
     """
     trainer = Trainer(
         model,
@@ -90,7 +90,7 @@ class Trainer:
         val_loader: DataLoader[torch.Tensor] | None = None,
         test_loader: DataLoader[torch.Tensor] | None = None,
         metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {},
-        epoch_callbacks: Iterable[Callable[[int, int, nn.Module, 'Trainer'], None]] = [],
+        epoch_callbacks: Iterable[Callable[['Trainer'], None]] = [],
     ):
         """Initialize the trainer."""
         # Set the parameters.
@@ -156,7 +156,7 @@ class Trainer:
                 torch.save(self.model, f'runs/{self.run_name}/checkpoints/{self.trainer_epoch:04}e.pt')
 
                 for callback in self.epoch_callbacks:
-                    callback(self.epoch_i, self.epochs, self.model, self)
+                    callback(self)
 
             self.test()
 
