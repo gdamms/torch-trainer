@@ -23,6 +23,7 @@ def train(
     test_loader: DataLoader[torch.Tensor] | None = None,
     metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {},
     epoch_callbacks: Iterable[Callable[['Trainer'], None]] = [],
+    save_chekpoint: bool = True,
 ):
     """This a function that trains a model.
 
@@ -40,6 +41,7 @@ def train(
         test_loader (DataLoader[torch.Tensor] | None, optional): The data loader for testing.
         metrics (dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]], optional): The metrics to evaluate.
         epoch_callbacks (Iterable[Callable[[Trainer], None]], optional): The callbacks to run after each epoch.
+        save_chekpoint (bool, optional): Whether to save checkpoints or not.
     """
     trainer = Trainer(
         model,
@@ -51,6 +53,7 @@ def train(
         test_loader,
         metrics,
         epoch_callbacks,
+        save_chekpoint,
     )
     trainer.start()
 
@@ -91,6 +94,7 @@ class Trainer:
         test_loader: DataLoader[torch.Tensor] | None = None,
         metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {},
         epoch_callbacks: Iterable[Callable[['Trainer'], None]] = [],
+        save_chekpoint: bool = True,
     ):
         """Initialize the trainer."""
         # Set the parameters.
@@ -103,6 +107,7 @@ class Trainer:
         self.test_loader = test_loader
         self.metrics = metrics
         self.epoch_callbacks = epoch_callbacks
+        self.save_checkpoint = save_chekpoint
 
         # Set the run parameters.
         self.model_name = model.__class__.__name__
@@ -153,7 +158,8 @@ class Trainer:
                 self.trainer_epoch += 1
                 set_model_attr(self.model, 'trainer_epoch', str(self.trainer_epoch))
 
-                torch.save(self.model, f'runs/{self.run_name}/checkpoints/{self.trainer_epoch:04}e.pt')
+                if self.save_checkpoint:
+                    torch.save(self.model, f'runs/{self.run_name}/checkpoints/{self.trainer_epoch:04}e.pt')
 
                 for callback in self.epoch_callbacks:
                     callback(self)
