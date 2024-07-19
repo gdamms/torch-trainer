@@ -126,7 +126,7 @@ class Trainer:
         # Set the run name and directories.
         self.run_name = get_model_attr(model, Trainer.RUN_NAME)
         if self.run_name is None:
-            self.run_name = f'{self.model_name}_{self.date_time}'
+            self.run_name = f'{self.date_time}_{self.model_name}'
             set_model_attr(model, Trainer.RUN_NAME, self.run_name)
         self.run_dir = os.path.join(self.RUNS_DIR, self.run_name)
         os.makedirs(self.run_dir, exist_ok=True)
