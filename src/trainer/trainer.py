@@ -163,7 +163,7 @@ class Trainer:
                 # Save the model checkpoint.
                 if self.save_current_epoch():
                     torch.save(self.model, f'runs/{self.run_name}/checkpoints/{self.trainer_epoch:04}e.pt')
-                if self.save_checkpoint >= 0 and self.epoch_i == self.epoch_end:
+                if self.save_checkpoint >= 0:
                     torch.save(self.model, f'runs/{self.run_name}/checkpoints/last.pt')
 
                 for callback in self.epoch_callbacks:
