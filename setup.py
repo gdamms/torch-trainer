@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='torch-trainer',
-    version='1.1.1',
+    version='1.2.0',
     license="MIT",
     description='A simple library to train pytorch models.',
     long_description=open('README.md').read(),

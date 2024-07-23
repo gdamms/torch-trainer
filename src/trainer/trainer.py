@@ -23,7 +23,7 @@ def train(
     test_loader: DataLoader[torch.Tensor] | None = None,
     metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {},
     epoch_callbacks: Iterable[Callable[['Trainer'], None]] = [],
-    save_chekpoint: bool = True,
+    save_chekpoint: int | bool = True,
 ):
     """This a function that trains a model.
 
@@ -41,7 +41,9 @@ def train(
         test_loader (DataLoader[torch.Tensor] | None, optional): The data loader for testing.
         metrics (dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]], optional): The metrics to evaluate.
         epoch_callbacks (Iterable[Callable[[Trainer], None]], optional): The callbacks to run after each epoch.
-        save_chekpoint (bool, optional): Whether to save checkpoints or not.
+        save_chekpoint (int | bool, optional): The number of epochs to save a checkpoint. If set to `0`, no checkpoint is saved
+            but the last checkpoint is still saved. If set to `-1`, even the last checkpoint is not saved.
+            (True == 1 and False == 0)
     """
     trainer = Trainer(
         model,
@@ -53,7 +55,7 @@ def train(
         test_loader,
         metrics,
         epoch_callbacks,
-        save_chekpoint,
+        int(save_chekpoint),
     )
     trainer.start()
 
@@ -94,7 +96,7 @@ class Trainer:
         test_loader: DataLoader[torch.Tensor] | None = None,
         metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {},
         epoch_callbacks: Iterable[Callable[['Trainer'], None]] = [],
-        save_chekpoint: bool = True,
+        save_chekpoint: int = 1,
     ):
         """Initialize the trainer."""
         # Set the parameters.
@@ -155,11 +157,14 @@ class Trainer:
                 self.train()
                 self.validate()
 
-                self.trainer_epoch += 1
+                self.trainer_epoch = self.epoch_i
                 set_model_attr(self.model, 'trainer_epoch', str(self.trainer_epoch))
 
-                if self.save_checkpoint:
+                # Save the model checkpoint.
+                if self.save_current_epoch():
                     torch.save(self.model, f'runs/{self.run_name}/checkpoints/{self.trainer_epoch:04}e.pt')
+                if self.save_checkpoint >= 0 and self.epoch_i == self.epoch_end:
+                    torch.save(self.model, f'runs/{self.run_name}/checkpoints/last.pt')
 
                 for callback in self.epoch_callbacks:
                     callback(self)
@@ -239,3 +244,9 @@ class Trainer:
         self.work = Trainer.TEST_WORK
         if self.test_loader:
             self.evaluate(self.test_loader, {'Loss': self.criterion} | self.metrics)
+
+    def save_current_epoch(self):
+        if self.save_checkpoint <= 0:
+            return False
+        return (self.epoch_i - self.epoch_start) % self.save_checkpoint == 0 \
+                or self.epoch_i == self.epoch_end
