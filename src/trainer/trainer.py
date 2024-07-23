@@ -23,7 +23,7 @@ def train(
     test_loader: DataLoader[torch.Tensor] | None = None,
     metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {},
     epoch_callbacks: Iterable[Callable[['Trainer'], None]] = [],
-    save_chekpoint: int | bool = True,
+    save_checkpoint: int | bool = True,
 ):
     """This a function that trains a model.
 
@@ -41,7 +41,7 @@ def train(
         test_loader (DataLoader[torch.Tensor] | None, optional): The data loader for testing.
         metrics (dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]], optional): The metrics to evaluate.
         epoch_callbacks (Iterable[Callable[[Trainer], None]], optional): The callbacks to run after each epoch.
-        save_chekpoint (int | bool, optional): The number of epochs to save a checkpoint. If set to `0`, no checkpoint is saved
+        save_checkpoint (int | bool, optional): The number of epochs to save a checkpoint. If set to `0`, no checkpoint is saved
             but the last checkpoint is still saved. If set to `-1`, even the last checkpoint is not saved.
             (True == 1 and False == 0)
     """
@@ -55,7 +55,7 @@ def train(
         test_loader,
         metrics,
         epoch_callbacks,
-        int(save_chekpoint),
+        int(save_checkpoint),
     )
     trainer.start()
 
@@ -96,7 +96,7 @@ class Trainer:
         test_loader: DataLoader[torch.Tensor] | None = None,
         metrics: dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = {},
         epoch_callbacks: Iterable[Callable[['Trainer'], None]] = [],
-        save_chekpoint: int = 1,
+        save_checkpoint: int = 1,
     ):
         """Initialize the trainer."""
         # Set the parameters.
@@ -109,7 +109,7 @@ class Trainer:
         self.test_loader = test_loader
         self.metrics = metrics
         self.epoch_callbacks = epoch_callbacks
-        self.save_checkpoint = save_chekpoint
+        self.save_checkpoint = save_checkpoint
 
         # Set the run parameters.
         self.model_name = model.__class__.__name__
